@@ -3,8 +3,9 @@ node_modules/
 *.log
 npm-debug.log*
 
-# 内部文档（不允许上传至远程）
+# 内部文件（不允许上传至远程）
 docs/development.md
+AGENTS.md
 
 # 系统与编辑器
 .DS_Store

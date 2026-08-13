@@ -3,22 +3,24 @@
 #
 # This patch runs in the host composition, so the bridge and its tools are
 # GLOBAL: every agent and preset on the profile sees mcp__chrome-devtools__*
-# after the host restarts. For a per-session alternative (no restart, no pnpm),
-# install the `chrome-devtools` agent preset from this repo instead — both
-# mount the same @deepseek-ai/dsh-mcp-client row shape.
+# after the host restarts.
+#
+# The server is expected GLOBALLY installed (`npm i -g chrome-devtools-mcp`),
+# never downloaded per run via npx — the stdio command resolves it from PATH
+# (cross-spawn handles the .cmd shim on Windows). Install the server first:
+#   npm i -g chrome-devtools-mcp
 #
 # The row consumes the host `tools` registry and provides nothing, so it needs
 # no realm. Activation is async (Cordis does not treat the returned promise as
-# startup work), so a slow first run — npx downloading chrome-devtools-mcp plus
-# Chrome launching — never blocks host boot; with failOnStartupError false the
-# supervisor retries with backoff and the tools appear when the server is up.
+# startup work), so a slow first run — Chrome launching — never blocks host
+# boot; with failOnStartupError false the supervisor retries with backoff and
+# the tools appear when the server is up.
 - insert:
     - id: mcp-chrome-devtools
       name: '@deepseek-ai/dsh-mcp-client'
       config:
         serverName: chrome-devtools
         transport: stdio
-        command: npx
-        args: ['-y', 'chrome-devtools-mcp@latest']
+        command: chrome-devtools-mcp
         toolCallTimeoutMs: 120000
         failOnStartupError: false
