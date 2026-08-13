@@ -38,8 +38,8 @@ dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools
 （非 web 界面可把 `web` 换成你的 profile 名，如 `tui` / `headless`。）
 
 安装后**重启宿主**（`dsh web` / 你的启动方式）。重启后所有会话都会出现
-`mcp__chrome-devtools__browser_navigate`、`dom_snapshot`、`browser_screenshot`、
-`console_list_messages`、`network_get_response_body`、`performance_start_trace`
+`mcp__chrome-devtools__navigate_page`、`take_snapshot`、`take_screenshot`、
+`list_console_messages`、`get_network_request`、`performance_start_trace`
 等工具（以服务器实际声明为准），无需任何额外配置。
 
 卸载：
@@ -94,20 +94,20 @@ chrome-devtools-mcp 服务器（npx -y chrome-devtools-mcp@latest，宿主进程
 
 ## 工具能力
 
-以服务器实际声明为准，主要工具族：
+以服务器实际声明为准（当前版本 28 个工具）：
 
 | 族 | 工具（mcp__chrome-devtools__ 前缀） |
 |---|---|
-| 浏览器 | browser_navigate / browser_reload / browser_navigate_history / browser_back / browser_forward |
-| 标签页 | browser_new_tab / browser_select_tab / browser_close_tab / browser_focus_tab |
-| DOM | dom_snapshot / dom_snapshot_meta |
-| 交互 | browser_click / browser_type / browser_press_key / browser_hover / browser_scroll / browser_resize |
-| 截图 | browser_screenshot(fullPage, format) |
-| 控制台 | console_enable / console_list_messages / console_disable |
-| 网络 | network_enable / network_get_response_body / network_set_extra_http_headers / network_block_urls |
-| 性能 | performance_start_trace / performance_stop_trace |
-| 存储 | storage_get_cookies / storage_set_cookie / storage_delete_cookie / storage_clear_cookies |
-| 模拟 | emulation 相关工具（若服务器声明） |
+| 页面 | navigate_page / new_page / close_page / select_page / list_pages / resize_page |
+| 快照 | take_snapshot（DOM/无障碍树）/ take_screenshot（截图） |
+| 交互 | click / fill / fill_form / type_text / press_key / hover / drag |
+| 脚本 | evaluate_script（页面内执行 JS，返回 JSON） |
+| 模拟 | emulate（视口/网络/UA/地理/色域） |
+| 控制台 | list_console_messages / get_console_message |
+| 网络 | list_network_requests / get_network_request（含请求/响应体） |
+| 性能 | performance_start_trace / performance_stop_trace / performance_analyze_insight |
+| 审计 | lighthouse_audit |
+| 其他 | handle_dialog / upload_file / wait_for |
 
 ## 配置参考
 

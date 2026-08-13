@@ -48,9 +48,9 @@ dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools
 (Replace `web` with your profile name — `tui`, `headless`, etc.)
 
 Then **restart the host** (`dsh web` / however you launch it). After the restart
-every session sees tools such as `mcp__chrome-devtools__browser_navigate`,
-`dom_snapshot`, `browser_screenshot`, `console_list_messages`,
-`network_get_response_body`, `performance_start_trace` (exact set per the
+every session sees tools such as `mcp__chrome-devtools__navigate_page`,
+`take_snapshot`, `take_screenshot`, `list_console_messages`,
+`get_network_request`, `performance_start_trace` (exact set per the
 server's declaration). No further configuration is needed.
 
 Uninstall:
@@ -108,20 +108,20 @@ One shared Chrome instance (auto-launches the locally installed Chrome/Chromium/
 
 ## Tool capabilities
 
-Per the server's actual declaration; main tool families:
+Per the server's actual declaration (28 tools in the current version):
 
 | Family | Tools (mcp__chrome-devtools__ prefix) |
 |---|---|
-| Browser | browser_navigate / browser_reload / browser_navigate_history / browser_back / browser_forward |
-| Tabs | browser_new_tab / browser_select_tab / browser_close_tab / browser_focus_tab |
-| DOM | dom_snapshot / dom_snapshot_meta |
-| Interaction | browser_click / browser_type / browser_press_key / browser_hover / browser_scroll / browser_resize |
-| Screenshots | browser_screenshot(fullPage, format) |
-| Console | console_enable / console_list_messages / console_disable |
-| Network | network_enable / network_get_response_body / network_set_extra_http_headers / network_block_urls |
-| Performance | performance_start_trace / performance_stop_trace |
-| Storage | storage_get_cookies / storage_set_cookie / storage_delete_cookie / storage_clear_cookies |
-| Emulation | emulation tools (when the server declares them) |
+| Pages | navigate_page / new_page / close_page / select_page / list_pages / resize_page |
+| Snapshots | take_snapshot (DOM/accessibility tree) / take_screenshot |
+| Interaction | click / fill / fill_form / type_text / press_key / hover / drag |
+| Scripting | evaluate_script (run JS in the page, returns JSON) |
+| Emulation | emulate (viewport/network/UA/geolocation/color scheme) |
+| Console | list_console_messages / get_console_message |
+| Network | list_network_requests / get_network_request (with request/response bodies) |
+| Performance | performance_start_trace / performance_stop_trace / performance_analyze_insight |
+| Auditing | lighthouse_audit |
+| Other | handle_dialog / upload_file / wait_for |
 
 ## Configuration reference
 
