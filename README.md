@@ -13,8 +13,9 @@
 ## 特性
 
 - **一键安装**：`dsh plugin add github:...` 一条命令，自动进入 profile 补丁层栈，零手工配置
-- **服务器全局安装**：`npm i -g chrome-devtools-mcp` 常驻本机（不经过 npx 单次
-  下载执行），插件直接以 PATH 上的全局命令启动，启动快、行为可预期
+- **npx 开箱即用**：服务器经 `npx -y chrome-devtools-mcp@latest` 首次自动下载
+  （与 Claude Code / Claude Desktop / Cursor 的 chrome-devtools-mcp 用法一致），
+  之后命中 npx 缓存秒级启动——不需要全局安装、不需要任何前置步骤
 - **全局可用**：宿主重启后，所有会话（含子 agent）都能用 `mcp__chrome-devtools__*` 工具
 - **真实浏览器**：有头或无头 Chrome、多标签、Cookie、网络拦截、性能轨迹，一应俱全
 - **自动重连**：服务器崩溃由 `dsh-mcp-client` 指数退避重启，失败预算防无限重启
@@ -25,18 +26,13 @@
 | 依赖 | 说明 |
 |---|---|
 | DeepSeek Harness | 随官方发布，自带 `@deepseek-ai/dsh-mcp-client` 桥接插件 |
-| Node.js ≥ 20 | `npm` 在 PATH 上 |
+| Node.js ≥ 20 | `npx` 在 PATH 上（Node 自带） |
 | pnpm | `dsh plugin` 的底层包管理器（`npm i -g pnpm` 或 `corepack enable`） |
-| chrome-devtools-mcp | **全局安装**：`npm i -g chrome-devtools-mcp`（`install.mjs` 会自动装） |
 | Chrome / Chromium / Edge | 本机安装；可在插件 `args` 用 `--channel` 指定 |
 
 ## 安装
 
 ```bash
-# 1. 全局安装服务器（一次性；install.mjs 会自动执行这步）
-npm i -g chrome-devtools-mcp
-
-# 2. 安装插件
 dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools
 ```
 
@@ -47,7 +43,7 @@ dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools
 `list_console_messages`、`get_network_request`、`performance_start_trace`
 等工具（以服务器实际声明为准），无需任何额外配置。
 
-升级服务器：`npm i -g chrome-devtools-mcp@latest`（然后重启宿主）。
+首次使用会经 npx 下载服务器（约 30-60 秒）+ 启动 Chrome；之后常驻、秒级启动。
 
 卸载：
 
@@ -55,15 +51,13 @@ dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools
 dsh plugin --profile web remove dsh-chrome-devtools
 ```
 
-（卸载插件不影响全局安装的服务器；不需要时可 `npm rm -g chrome-devtools-mcp`。）
-
 ### 仓库一键脚本（开发/本机场景）
 
 ```bash
 git clone https://github.com/yuzi-ska/DSH-Chrome-devtools.git
 cd DSH-Chrome-devtools
 
-node scripts/install.mjs            # 自动全局装服务器 + 安装到 web profile（本地 link，改代码重启即生效）
+node scripts/install.mjs            # 安装到 web profile（本地 link，改代码重启即生效）
 node scripts/install.mjs --check    # 环境自检（只读）
 node scripts/install.mjs --uninstall
 ```
@@ -89,7 +83,7 @@ Harness（profile 组装）
 @deepseek-ai/dsh-mcp-client 行（stdio，随 Harness 发布，配置由插件内置）
    │
    ▼
-chrome-devtools-mcp 服务器（全局安装：npm i -g chrome-devtools-mcp，宿主进程经 PATH 启动）
+chrome-devtools-mcp 服务器（npx -y chrome-devtools-mcp@latest，宿主进程 spawn，首次自动下载，之后缓存命中）
    │
    │  Chrome DevTools Protocol
    ▼
@@ -130,7 +124,8 @@ chrome-devtools-mcp 服务器（全局安装：npm i -g chrome-devtools-mcp，�
   config:
     serverName: chrome-devtools     # 工具命名空间：mcp__chrome-devtools__*
     transport: stdio
-    command: chrome-devtools-mcp    # 全局安装（npm i -g），由 PATH 解析
+    command: npx
+    args: ['-y', 'chrome-devtools-mcp@latest']
     toolCallTimeoutMs: 120000
     failOnStartupError: false
 ```
@@ -138,8 +133,7 @@ chrome-devtools-mcp 服务器（全局安装：npm i -g chrome-devtools-mcp，�
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `serverName` | chrome-devtools | `[A-Za-z0-9_-]{1,32}`，进程内所有 mcp-client 实例唯一 |
-| `command` | chrome-devtools-mcp | 全局安装的命令；Windows 下 .cmd shim 由 SDK 的 cross-spawn 正确解析 |
-| `args` | 无 | 可加服务器选项（见下节），如 `--headless` |
+| `command` / `args` | npx -y ... | stdio 启动命令；与 Claude Code 生态一致；Windows 下 `npx` 由 SDK 的 cross-spawn 正确解析 |
 | `toolCallTimeoutMs` | 120000 | 单次工具调用超时；页面加载/轨迹录制建议放宽 |
 | `failOnStartupError` | false | true 时首连失败直接拒绝所在组装；false 时记日志并按退避重连 |
 | `env` / `cwd` | 空 | 附加环境变量 / 工作目录（默认继承宿主） |
@@ -178,11 +172,11 @@ chrome-devtools-mcp 服务器（全局安装：npm i -g chrome-devtools-mcp，�
 
 | 现象 | 处理 |
 |---|---|
-| 首次调用较慢（10-30s） | Chrome 首次启动成本；之后常驻 |
+| 首次调用较慢（30-60s+） | npx 首次下载 + Chrome 首次启动，一次性成本；之后命中缓存、常驻 |
 | 无浏览器工具出现 | 看宿主日志的 `mcp-client(chrome-devtools)` 行：reconnecting（warn）、recovered（info）、disabled-loss（error） |
 | 安装后工具没出现 | bundle 插件在启动时加载，**必须重启宿主**；profile 补丁层的配置热重载对新增行不生效 |
 | Chrome 未安装/找不到 | 在 `args` 加 `--channel`（如 `msedge`），或确认默认 Chrome 存在 |
-| 报找不到 chrome-devtools-mcp | 未全局安装或 PATH 不含 npm 全局 bin：`npm i -g chrome-devtools-mcp`；Windows 检查 `%APPDATA%\npm` |
+| npx 无法下载 | 检查 npm registry 网络；可固定版本 `args: ['-y', 'chrome-devtools-mcp@<固定版本>']` 减少漂移 |
 | 想附加已开的 Chrome | Chrome 以 `--remote-debugging-port=9222` 启动后，`args` 加 `--browserUrl http://localhost:9222` |
 | `dsh plugin` 报 pnpm 缺失 | 安装 pnpm（`npm i -g pnpm` 或 `corepack enable`） |
 | 工具调用超时 | 单次 120s；网络差或页面卡死时提高 `toolCallTimeoutMs` |

@@ -1,0 +1,5 @@
+dsh-plugin
+deepseek-harness
+chrome-devtools
+mcp
+browser-automation
