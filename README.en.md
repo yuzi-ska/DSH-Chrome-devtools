@@ -7,75 +7,51 @@ Give DeepSeek Harness agents control over a real Chrome browser via
 navigation, clicking, typing, screenshots, DOM snapshots, console, network
 requests, performance traces, and cookies.
 
-This repository **root is itself an official bundle plugin** (`package.json`
-declares `dsh.bundle`, `cordis.patch.yml` is the patch layer), installable with
-one `dsh plugin` command straight from GitHub — no clone required.
+**The only install path is the official `dsh plugin` one-command install**
+(GitHub source; no clone required). This repository **root is itself an
+official bundle plugin** (`package.json` declares `dsh.bundle`,
+`cordis.patch.yml` is the patch layer): the MCP server row is built into the
+plugin, so it is **ready to use right after install** — no extra components to
+install, no MCP configuration to write.
 
 ## Features
 
-- **Official plugin form**: one-command `dsh plugin` install; the package is
-  reconciled into the profile's patch-layer stack automatically, zero manual
-  config.
-- **Global by default**: after a host restart every session (including child
-  agents) sees the `mcp__chrome-devtools__*` tools.
-- **Per-session alternative**: a bundled agent preset enables the tools for
-  selected sessions only — no restart, no pnpm.
+- **One-command install**: `dsh plugin add github:...`; the package is reconciled
+  into the profile's patch-layer stack automatically, zero manual config.
+- **Ready to use**: the MCP row, tool namespace, timeouts, and reconnect policy
+  are all built in. On first use npx downloads the server automatically and
+  Chrome launches automatically; afterwards it stays resident.
+- **Global**: after a host restart every session (including child agents) sees
+  the `mcp__chrome-devtools__*` tools.
 - **Real browser**: headed or headless Chrome, multiple tabs, cookies, network
   interception, performance traces.
 - **Auto-reconnect**: the `dsh-mcp-client` supervisor restarts a crashed server
   with exponential backoff and a failure budget that prevents infinite restarts.
-- **Cross-platform**: Windows / macOS / Linux; the installer script is zero-dependency
-  (pure Node standard library).
+- **Cross-platform**: Windows / macOS / Linux; the bundled installer script is
+  zero-dependency (pure Node standard library).
 
-## Installation comparison
+## Requirements
 
-| Form | Install command | Tool scope | Takes effect | Requires |
-|---|---|---|---|---|
-| **bundle plugin** (recommended) | `dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools` | **Global**: every session | Host restart | pnpm |
-| **agent preset** (per-session) | `node scripts/install.mjs --preset` | Only sessions on that preset | New session | none |
+| Dependency | Notes |
+|---|---|
+| DeepSeek Harness | ships `@deepseek-ai/dsh-mcp-client`, the bridge plugin |
+| Node.js ≥ 20 | `npx` on PATH |
+| pnpm | package manager behind `dsh plugin` (`npm i -g pnpm` or `corepack enable`) |
+| Chrome / Chromium / Edge | installed locally; pick one via `--channel` in the plugin `args` |
 
-## Architecture
-
-```
-Harness (profile composition)
-   │
-   │  bundle plugin patch layer (repo-root cordis.patch.yml) or preset rows (presets/chrome-devtools/agent.cordis.yml)
-   ▼
-@deepseek-ai/dsh-mcp-client row (stdio, shipped with Harness)
-   │
-   ▼
-chrome-devtools-mcp server (npx -y chrome-devtools-mcp@latest, spawned by the host)
-   │
-   │  Chrome DevTools Protocol
-   ▼
-One shared Chrome instance (installed Chrome/Chromium/Edge)
-```
-
-- Every MCP tool is registered on `ctx.tools` as `mcp__chrome-devtools__<tool>` and
-  called like a native tool by the model.
-- One profile / one preset mounts one resident server: all sessions in the same
-  scope share the same browser.
-- If the server crashes, the `dsh-mcp-client` supervisor reconnects with
-  exponential backoff; after 10 consecutive failures the tools are unregistered
-  (recover by restarting the host or reloading the preset).
-- Each tool call may run up to 120 seconds (configurable).
-
-## Quick start
-
-Prerequisites: Node.js 20+ (`npx` on PATH), a local Chrome / Chromium / Edge
-install (`--channel` picks the browser), and pnpm for bundle mode.
-
-### Option 1: one-command GitHub install (global, recommended)
+## Install
 
 ```bash
 dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools
 ```
 
+(Replace `web` with your profile name — `tui`, `headless`, etc.)
+
 Then **restart the host** (`dsh web` / however you launch it). After the restart
 every session sees tools such as `mcp__chrome-devtools__browser_navigate`,
 `dom_snapshot`, `browser_screenshot`, `console_list_messages`,
 `network_get_response_body`, `performance_start_trace` (exact set per the
-server's declaration).
+server's declaration). No further configuration is needed.
 
 Uninstall:
 
@@ -83,7 +59,7 @@ Uninstall:
 dsh plugin --profile web remove dsh-chrome-devtools
 ```
 
-### Option 2: repo installer script (local development)
+### Repo installer script (development / local setups)
 
 ```bash
 git clone https://github.com/yuzi-ska/DSH-Chrome-devtools.git
@@ -94,37 +70,41 @@ node scripts/install.mjs --check    # environment check (read-only)
 node scripts/install.mjs --uninstall
 ```
 
-The script is equivalent to `dsh plugin --profile web add <this repo>`.
-
-### Option 3: agent preset (per-session)
-
-```bash
-node scripts/install.mjs --preset
-```
-
-Copies `presets/chrome-devtools/` to `$DSH_HOME/.agent-presets/chrome-devtools/`.
-New sessions can then pick the **Chrome DevTools Agent** preset (Settings →
-General can make it the default). No restart, no pnpm. Sessions load the
-`chrome-devtools` skill (SKILL.md) with usage guidance for each tool family.
-
-Both forms can coexist (global bundle tools + preset skill); `serverName` must be
-unique per process, so do not mount two `serverName: chrome-devtools` instances.
-
-### Installer options
-
 ```
 node scripts/install.mjs [options]
-  --preset            install the agent preset (per-session) instead of the bundle plugin (global)
   --check             environment check: node/pnpm/dsh/browser/DSH_HOME; writes nothing
-  --uninstall         uninstall (bundle: dsh plugin remove; preset: delete the directory)
+  --uninstall         uninstall (dsh plugin remove)
   --profile <name>    target profile (default web)
   --dsh-home <path>   override DSH_HOME (default $DSH_HOME or ~/.dsh)
   --harness <path>    harness repo/install path (runs the CLI via node when dsh is not on PATH)
   --plugin-spec <s>   plugin source (default this repo root; npm name, git source, or local path)
-  --package-name <n>  package name used by bundle uninstall (default dsh-chrome-devtools)
-  --force             overwrite an existing different preset directory
-  --yes               do not ask before delete-type operations
+  --package-name <n>  package name used by uninstall (default dsh-chrome-devtools)
 ```
+
+## Architecture
+
+```
+Harness (profile composition)
+   │
+   │  bundle plugin patch layer (this repo's cordis.patch.yml)
+   ▼
+@deepseek-ai/dsh-mcp-client row (stdio, shipped with Harness; config built into the plugin)
+   │
+   ▼
+chrome-devtools-mcp server (npx -y chrome-devtools-mcp@latest, spawned by the host; first-run auto download)
+   │
+   │  Chrome DevTools Protocol
+   ▼
+One shared Chrome instance (auto-launches the locally installed Chrome/Chromium/Edge)
+```
+
+- Every MCP tool is registered on `ctx.tools` as `mcp__chrome-devtools__<tool>` and
+  called like a native tool by the model.
+- One profile mounts one resident server: all sessions share the same browser.
+- If the server crashes, the `dsh-mcp-client` supervisor reconnects with
+  exponential backoff; after 10 consecutive failures the tools are unregistered
+  (recover by restarting the host).
+- Each tool call may run up to 120 seconds (configurable).
 
 ## Tool capabilities
 
@@ -145,7 +125,10 @@ Per the server's actual declaration; main tool families:
 
 ## Configuration reference
 
-### The MCP row (identical in repo-root cordis.patch.yml and presets/chrome-devtools/agent.cordis.yml)
+The defaults work out of the box; the following are optional (restart the host
+after editing `cordis.patch.yml`).
+
+### The MCP row (built into the plugin)
 
 ```yaml
 - id: mcp-chrome-devtools
@@ -161,9 +144,9 @@ Per the server's actual declaration; main tool families:
 
 | Field | Default | Meaning |
 |---|---|---|
-| `serverName` | required | `[A-Za-z0-9_-]{1,32}`, unique across live mcp-client instances |
-| `command` / `args` | required | stdio launch command; `npx` resolves correctly on Windows via the SDK's cross-spawn |
-| `toolCallTimeoutMs` | 60000 | per-tool-call timeout; loosen for page loads / traces |
+| `serverName` | chrome-devtools | `[A-Za-z0-9_-]{1,32}`, unique across live mcp-client instances |
+| `command` / `args` | npx ... | stdio launch command; `npx` resolves correctly on Windows via the SDK's cross-spawn |
+| `toolCallTimeoutMs` | 120000 | per-tool-call timeout; loosen for page loads / traces |
 | `failOnStartupError` | false | true rejects the composition on first-connect failure; false logs and retries with backoff |
 | `env` / `cwd` | empty | extra env vars / working directory (defaults to the host's) |
 | `reconnect.*` | see docs | backoff budget: initialDelayMs 500 / maxDelayMs 30000 / maxAttempts 10 |
@@ -183,16 +166,14 @@ Per the server's actual declaration; main tool families:
 
 See the official [docs/cli.md](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/cli.md) for the full list.
 
-## Session and sharing semantics
+## Sharing semantics
 
-- **Bundle plugin (global)**: tools register in the host composition; every
-  agent under the profile (including child agents) sees them. All sessions share
-  one browser and server process, so browser state (tabs, cookies, console
-  buffer) is visible across sessions.
-- **Preset (per-session)**: only sessions on that preset share the browser;
-  other presets are unaffected.
-- To isolate browser contexts: copy the preset and change `serverName` and `args`
-  (e.g. `--isolated` or a separate `--user-data-dir`).
+- Tools register in the host composition: every agent under the profile
+  (including child agents) sees them.
+- All sessions share one browser and server process, so browser state (tabs,
+  cookies, console buffer) is visible across sessions.
+- To isolate browser contexts: change `serverName` and `args` (e.g. `--isolated`
+  or a separate `--user-data-dir`) in another instance.
 
 ## Security notes
 
@@ -200,8 +181,7 @@ See the official [docs/cli.md](https://github.com/ChromeDevTools/chrome-devtools
   arbitrary requests, and reach internal networks. Use it only with trusted sessions.
 - Page content (DOM snapshots, console, response bodies) enters the model context
   and session logs — beware sensitive pages.
-- In global mode every request carries this tool family's schemas (token cost);
-  deployments that do not need browser capability should use preset mode.
+- In global mode every request carries this tool family's schemas (token cost).
 - With `failOnStartupError: false`, a server in a crash loop burns the reconnect
   budget and the tools are unregistered — deliberate failure visibility, no
   infinite restarts.
@@ -210,16 +190,15 @@ See the official [docs/cli.md](https://github.com/ChromeDevTools/chrome-devtools
 
 | Symptom | Fix |
 |---|---|
-| First call/session is slow (30-60s+) | npx first download + Chrome launch; one-time cost, then resident |
+| First call is slow (30-60s+) | npx first download + Chrome launch; one-time cost, then resident |
 | No browser tools appear | Check host logs for `mcp-client(chrome-devtools)`: reconnecting (warn), recovered (info), disabled-loss (error) |
+| Tools missing after install | Bundle plugins load at startup — **restart the host**; the profile-layer config hot-reload does not apply new rows |
 | Chrome missing/not found | Add `--channel` to `args` (e.g. `msedge`), or confirm default Chrome exists |
 | npx download fails | Check npm registry connectivity; pin `args: ['-y', 'chrome-devtools-mcp@<version>']` |
 | Attach an already-open Chrome | Start Chrome with `--remote-debugging-port=9222`, add `--browserUrl http://localhost:9222` to `args` |
-| `dsh plugin` reports missing pnpm | Install pnpm (`npm i -g pnpm` or `corepack enable`); preset mode does not need pnpm |
+| `dsh plugin` reports missing pnpm | Install pnpm (`npm i -g pnpm` or `corepack enable`) |
 | Tool call times out | 120s per call; raise `toolCallTimeoutMs` for slow networks or stuck pages |
-| serverName conflict after double install | `serverName` must be unique per process; keep one, rename or remove the other |
 | EPERM when switching from a local link to a GitHub source | Windows junctions cannot be renamed over by pnpm: `dsh plugin remove` first, then add the new source |
-| Tools missing after install | Bundle plugins load at startup — **restart the host**; the profile-layer config hot-reload does not apply new rows |
 
 ## Development
 
@@ -234,9 +213,6 @@ node scripts/install.mjs --harness <harness-repo-path>
 node <harness>/apps/cli/lib/bin.js --profile web --dump-config | grep -A8 mcp-chrome-devtools
 ```
 
-- When editing the `mcp-chrome-devtools` row in `cordis.patch.yml`, update the
-  identical row in `presets/chrome-devtools/agent.cordis.yml` — the two must stay
-  in sync.
 - After pushing, remote install: `dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools`.
 - Internal development notes live in `docs/development.md` and are excluded from
   the remote repository (see .gitignore).
@@ -246,5 +222,4 @@ node <harness>/apps/cli/lib/bin.js --profile web --dump-config | grep -A8 mcp-ch
 - [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) (the server; tool list and CLI options per its README / docs/cli.md)
 - [deepseek-ai/deepseek-harness — packages/mcp/mcp-client](https://github.com/deepseek-ai/deepseek-harness/tree/main/packages/mcp/mcp-client) (the Harness-side MCP client bridge)
 - [deepseek-ai/deepseek-harness — packages/bundle](https://github.com/deepseek-ai/deepseek-harness/tree/main/packages/bundle) (bundle plugin mechanism)
-- [deepseek-ai/deepseek-harness — packages/preset/agent-presets](https://github.com/deepseek-ai/deepseek-harness/tree/main/packages/preset/agent-presets) (preset mechanism)
 - [deepseek-ai/deepseek-harness — apps/cli/src/plugin.ts](https://github.com/deepseek-ai/deepseek-harness/blob/main/apps/cli/src/plugin.ts) (the `dsh plugin` command)
