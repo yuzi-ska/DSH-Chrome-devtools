@@ -26,7 +26,7 @@ preset 双形态），供在本仓库工作的 AI Agent 与人类开发者遵循
   - `skills/chrome-devtools/SKILL.md` — 随 preset 分发的浏览器使用技能
 - `scripts/install.mjs` — 跨平台一键安装（Windows/macOS/Linux，零依赖，Node ≥20）
 - `docs/development.md` — 内部开发文档，**不允许上传至远程**（已在 .gitignore 中排除）
-- `README.md` — 面向使用者的文档
+- `README.md` / `README.en.md` — 中英文使用者文档（互链；改安装方式、配置或故障排查时两版同步）
 
 ## 修改的规则
 
