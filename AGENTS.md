@@ -7,9 +7,10 @@ bundle 插件**），供在本仓库工作的 AI Agent 与人类开发者遵循�
 
 - 交付物：一个官方 bundle 插件包（**仓库根** = 包根，`dsh plugin add github:...`
   一键安装、全局工具、开箱即用）、跨平台安装脚本（`scripts/install.mjs`）与文档。
-- 安装后用户**不需要**安装附加组件或自行配置 MCP：mcp 行（`serverName`/stdio/npx/
-  超时/重连）全部内置于 `cordis.patch.yml`；首次使用 npx 自动下载服务器、自动启动
-  本机 Chrome。
+- 安装后用户**不需要**安装附加组件或自行配置 MCP：mcp 行（`serverName`/stdio/
+  超时/重连）全部内置于 `cordis.patch.yml`，服务器以 PATH 上的全局命令
+  （`npm i -g chrome-devtools-mcp`）启动——**不做 npx 单次下载执行**；
+  首次使用自动启动本机 Chrome。
 - 集成不修改 Harness 部署：mcp 行引用随 Harness 发布的 `@deepseek-ai/dsh-mcp-client`，
   包名由宿主的组装基址解析；本仓库不包含也不需要任何 Harness 源码改动。
 - **禁止**编辑 `F:\github\deepseek-harness`（部署 checkout）或部署随附的
@@ -47,7 +48,7 @@ bundle 插件**），供在本仓库工作的 AI Agent 与人类开发者遵循�
       `node <harness>/apps/cli/lib/bin.js --profile web --dump-config` 输出含
       `mcp-chrome-devtools` 行；profile manifest 的 `dsh.profile.bundles` 含包名。
 - [ ] 宿主重启后出现 `mcp__chrome-devtools__*` 工具（无需任何手动配置）。
-- [ ] `npx -y chrome-devtools-mcp@latest --help` 输出的选项与 README 表格一致（版本漂移时更新）。
+- [ ] `chrome-devtools-mcp --help` 输出的选项与 README 表格一致（版本漂移时更新）。
 - [ ] 未触碰部署目录与随附 preset；无遗留测试进程（chrome-devtools-mcp 服务器由宿主管理，属正常常驻）。
 
 ## 环境事实（本机）

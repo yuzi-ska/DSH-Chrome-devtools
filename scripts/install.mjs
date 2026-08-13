@@ -4,10 +4,11 @@
  *
  * 唯一安装方式：官方 bundle 插件——把本仓库以 `dsh plugin` 机制装进目标 profile
  * （宿主重启后全局工具 mcp__chrome-devtools__* 生效）。mcp 行由插件自带，
- * 无需任何手动配置。
+ * 无需任何手动配置；chrome-devtools-mcp 服务器由本脚本**全局安装**
+ * （npm i -g，不经过 npx 单次下载执行）。
  *
  * 用法：
- *   node scripts/install.mjs                     # 安装到 web profile
+ *   node scripts/install.mjs                     # 全局装服务器 + 安装到 web profile
  *   node scripts/install.mjs --check             # 环境自检（不写任何文件）
  *   node scripts/install.mjs --uninstall         # 卸载
  *   node scripts/install.mjs --profile tui       # 指定 profile
@@ -169,6 +170,8 @@ function cmdCheck() {
   console.log(`  node        v${process.versions.node}（需要 >= ${MIN_NODE_MAJOR}）`)
   const pnpm = findPnpm()
   console.log(`  pnpm        ${pnpm !== '' ? pnpm : '未找到（dsh plugin 依赖 pnpm）'}`)
+  const server = findGlobalServer()
+  console.log(`  全局包      ${server ? `chrome-devtools-mcp 已全局安装（${server}）` : '未安装（npm i -g chrome-devtools-mcp）'}`)
   const browser = findBrowser()
   console.log(`  浏览器      ${browser !== '' ? browser : '未检测到 Chrome/Chromium/Edge（可在插件 args 加 --channel 指定）'}`)
   console.log(`  DSH_HOME    ${opts.dshHome}${existsSync(opts.dshHome) ? '' : '（目录不存在）'}`)
@@ -179,6 +182,37 @@ function cmdCheck() {
   const manifest = bundleInstalledManifest()
   const installed = manifest && (manifest.dependencies ?? {})[opts.packageName]
   console.log(`  插件        ${installed ? `已安装（${installed}）` : '未安装'}`)
+}
+
+/** 探测 chrome-devtools-mcp 是否已在 PATH（全局安装）；返回来源描述或空串。 */
+function findGlobalServer() {
+  const probe = run('chrome-devtools-mcp', ['--version'])
+  if (probe.error === undefined) return probe.stdout.trim() ? `v${probe.stdout.trim()}` : '可用'
+  const probeIgnore = run('chrome-devtools-mcp', ['--version'], { stdio: 'ignore' })
+  return probeIgnore.error === undefined ? '可用（受限环境）' : ''
+}
+
+/**
+ * 确保 chrome-devtools-mcp 全局安装（npm i -g）：服务器不再经 npx 单次下载
+ * 执行，插件 mcp 行直接以 PATH 上的全局命令启动它。
+ */
+function ensureGlobalServer() {
+  if (findGlobalServer() !== '') {
+    log('install', 'chrome-devtools-mcp 已全局安装，跳过')
+    return
+  }
+  log('install', 'npm install -g chrome-devtools-mcp（全局安装服务器，避免 npx 单次下载执行）')
+  const result = run('npm', ['install', '-g', 'chrome-devtools-mcp'], { stdio: 'inherit' })
+  if (result.status !== 0) {
+    console.error('[install] 全局安装 chrome-devtools-mcp 失败。请手动执行 npm install -g chrome-devtools-mcp 后重试。')
+    process.exit(1)
+  }
+  if (findGlobalServer() === '') {
+    console.error('[install] chrome-devtools-mcp 已安装但命令不在 PATH。')
+    console.error('  请把 npm 全局 bin 目录加入 PATH（Windows: %APPDATA%\\npm；macOS/Linux 可能需要 sudo 安装到系统目录）。')
+    process.exit(1)
+  }
+  log('install', 'chrome-devtools-mcp 全局就绪')
 }
 
 // ---- 子命令：安装/卸载 -------------------------------------------------------
@@ -194,6 +228,8 @@ function bundleInstalledManifest() {
 }
 
 function cmdBundleInstall() {
+  // 服务器全局安装先行：mcp 行以 PATH 上的 chrome-devtools-mcp 启动。
+  ensureGlobalServer()
   const pnpm = findPnpm()
   if (pnpm === '') {
     console.error('[install] 未找到 pnpm（dsh plugin 依赖 pnpm 管理 profile 依赖）。')
