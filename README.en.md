@@ -18,9 +18,10 @@ install, no MCP configuration to write.
 
 - **One-command install**: `dsh plugin add github:...`; the package is reconciled
   into the profile's patch-layer stack automatically, zero manual config.
-- **Globally installed server**: `npm i -g chrome-devtools-mcp` stays on the
-  machine (no per-run download-and-execute); the plugin starts it directly
-  from PATH — fast startup, predictable behavior.
+- **npx, ready to use**: the server runs via `npx -y chrome-devtools-mcp@latest` —
+  the same convention Claude Code / Claude Desktop / Cursor use for
+  chrome-devtools-mcp. First use downloads it automatically (30-60s); afterwards
+  the npx cache starts it in about a second. No global install, no prerequisites.
 - **Global**: after a host restart every session (including child agents) sees
   the `mcp__chrome-devtools__*` tools.
 - **Real browser**: headed or headless Chrome, multiple tabs, cookies, network
@@ -35,18 +36,13 @@ install, no MCP configuration to write.
 | Dependency | Notes |
 |---|---|
 | DeepSeek Harness | ships `@deepseek-ai/dsh-mcp-client`, the bridge plugin |
-| Node.js ≥ 20 | `npm` on PATH |
+| Node.js ≥ 20 | `npx` on PATH (ships with Node) |
 | pnpm | package manager behind `dsh plugin` (`npm i -g pnpm` or `corepack enable`) |
-| chrome-devtools-mcp | **global install**: `npm i -g chrome-devtools-mcp` (the installer script does it automatically) |
 | Chrome / Chromium / Edge | installed locally; pick one via `--channel` in the plugin `args` |
 
 ## Install
 
 ```bash
-# 1. install the server globally (one-time; the installer script does this automatically)
-npm i -g chrome-devtools-mcp
-
-# 2. install the plugin
 dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools
 ```
 
@@ -58,7 +54,8 @@ every session sees tools such as `mcp__chrome-devtools__navigate_page`,
 `get_network_request`, `performance_start_trace` (exact set per the
 server's declaration). No further configuration is needed.
 
-Upgrade the server: `npm i -g chrome-devtools-mcp@latest` (then restart the host).
+First use downloads the server via npx (~30-60s) and launches Chrome; afterwards
+it stays resident and starts in about a second.
 
 Uninstall:
 
@@ -66,16 +63,13 @@ Uninstall:
 dsh plugin --profile web remove dsh-chrome-devtools
 ```
 
-(Uninstalling the plugin leaves the globally installed server in place; remove
-it with `npm rm -g chrome-devtools-mcp` if no longer needed.)
-
 ### Repo installer script (development / local setups)
 
 ```bash
 git clone https://github.com/yuzi-ska/DSH-Chrome-devtools.git
 cd DSH-Chrome-devtools
 
-node scripts/install.mjs            # installs the server globally, then into the web profile (local link; edits take effect after restart)
+node scripts/install.mjs            # installs into the web profile (local link; edits take effect after restart)
 node scripts/install.mjs --check    # environment check (read-only)
 node scripts/install.mjs --uninstall
 ```
@@ -101,7 +95,7 @@ Harness (profile composition)
 @deepseek-ai/dsh-mcp-client row (stdio, shipped with Harness; config built into the plugin)
    │
    ▼
-chrome-devtools-mcp server (globally installed: npm i -g chrome-devtools-mcp; started by the host from PATH)
+chrome-devtools-mcp server (npx -y chrome-devtools-mcp@latest, spawned by the host; first-run auto download, then cache hit)
    │
    │  Chrome DevTools Protocol
    ▼
@@ -146,7 +140,8 @@ after editing `cordis.patch.yml`).
   config:
     serverName: chrome-devtools     # tool namespace: mcp__chrome-devtools__*
     transport: stdio
-    command: chrome-devtools-mcp    # globally installed (npm i -g), resolved from PATH
+    command: npx
+    args: ['-y', 'chrome-devtools-mcp@latest']
     toolCallTimeoutMs: 120000
     failOnStartupError: false
 ```
@@ -154,8 +149,7 @@ after editing `cordis.patch.yml`).
 | Field | Default | Meaning |
 |---|---|---|
 | `serverName` | chrome-devtools | `[A-Za-z0-9_-]{1,32}`, unique across live mcp-client instances |
-| `command` | chrome-devtools-mcp | globally installed command; the Windows .cmd shim resolves via the SDK's cross-spawn |
-| `args` | none | optional server options (see below), e.g. `--headless` |
+| `command` / `args` | npx -y ... | stdio launch command; the same convention as the Claude Code ecosystem; `npx` resolves correctly on Windows via the SDK's cross-spawn |
 | `toolCallTimeoutMs` | 120000 | per-tool-call timeout; loosen for page loads / traces |
 | `failOnStartupError` | false | true rejects the composition on first-connect failure; false logs and retries with backoff |
 | `env` / `cwd` | empty | extra env vars / working directory (defaults to the host's) |
@@ -200,11 +194,11 @@ See the official [docs/cli.md](https://github.com/ChromeDevTools/chrome-devtools
 
 | Symptom | Fix |
 |---|---|
-| First call is slow (10-30s) | first Chrome launch; one-time cost, then resident |
+| First call is slow (30-60s+) | npx first download + Chrome first launch; one-time cost, then cache hit and resident |
 | No browser tools appear | Check host logs for `mcp-client(chrome-devtools)`: reconnecting (warn), recovered (info), disabled-loss (error) |
 | Tools missing after install | Bundle plugins load at startup — **restart the host**; the profile-layer config hot-reload does not apply new rows |
 | Chrome missing/not found | Add `--channel` to `args` (e.g. `msedge`), or confirm default Chrome exists |
-| "chrome-devtools-mcp not found" | Not installed globally or npm global bin not on PATH: `npm i -g chrome-devtools-mcp`; on Windows check `%APPDATA%\npm` |
+| npx download fails | Check npm registry connectivity; pin a version in `args: ['-y', 'chrome-devtools-mcp@<version>']` to reduce drift |
 | Attach an already-open Chrome | Start Chrome with `--remote-debugging-port=9222`, add `--browserUrl http://localhost:9222` to `args` |
 | `dsh plugin` reports missing pnpm | Install pnpm (`npm i -g pnpm` or `corepack enable`) |
 | Tool call times out | 120s per call; raise `toolCallTimeoutMs` for slow networks or stuck pages |

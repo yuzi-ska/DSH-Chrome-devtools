@@ -5,22 +5,23 @@
 # GLOBAL: every agent and preset on the profile sees mcp__chrome-devtools__*
 # after the host restarts.
 #
-# The server is expected GLOBALLY installed (`npm i -g chrome-devtools-mcp`),
-# never downloaded per run via npx — the stdio command resolves it from PATH
-# (cross-spawn handles the .cmd shim on Windows). Install the server first:
-#   npm i -g chrome-devtools-mcp
+# The server runs via `npx -y chrome-devtools-mcp@latest` — the same convention
+# Claude Code / Claude Desktop / Cursor use for chrome-devtools-mcp — so the
+# plugin is truly one-command: npx downloads on first use (30-60s), then stays
+# in the npx cache and starts in ~1s. No global install step required.
 #
 # The row consumes the host `tools` registry and provides nothing, so it needs
 # no realm. Activation is async (Cordis does not treat the returned promise as
-# startup work), so a slow first run — Chrome launching — never blocks host
-# boot; with failOnStartupError false the supervisor retries with backoff and
-# the tools appear when the server is up.
+# startup work), so a slow first run — npx downloading plus Chrome launching —
+# never blocks host boot; with failOnStartupError false the supervisor retries
+# with backoff and the tools appear when the server is up.
 - insert:
     - id: mcp-chrome-devtools
       name: '@deepseek-ai/dsh-mcp-client'
       config:
         serverName: chrome-devtools
         transport: stdio
-        command: chrome-devtools-mcp
+        command: npx
+        args: ['-y', 'chrome-devtools-mcp@latest']
         toolCallTimeoutMs: 120000
         failOnStartupError: false
