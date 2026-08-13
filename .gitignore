@@ -1,0 +1,18 @@
+# Node / 依赖
+node_modules/
+*.log
+npm-debug.log*
+
+# 内部文档（不允许上传至远程）
+docs/development.md
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# 临时产物
+tmp/
+dist/

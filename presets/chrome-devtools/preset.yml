@@ -1,0 +1,2 @@
+name: Chrome DevTools Agent
+description: 完整编码 Agent，外加一个可通过 MCP 驱动的真实 Chrome 浏览器（导航、DOM、截图、控制台、网络、性能、存储）。
