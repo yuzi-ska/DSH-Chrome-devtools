@@ -1,14 +1,28 @@
 # dsh-chrome-devtools — DeepSeek Harness × Chrome DevTools 集成
 
+[English](README.en.md) | 中文
+
 让 DeepSeek Harness 的 Agent 通过 [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)
 驱动一个真实 Chrome 浏览器：导航、点击、输入、截图、DOM 快照、控制台、网络请求、性能轨迹、Cookie。
 
-本仓库提供两种互补的安装形态（都是官方机制，不修改 Harness 部署本身）：
+本仓库**根目录就是一个官方 bundle 插件包**（`package.json` 声明 `dsh.bundle`，
+`cordis.patch.yml` 是补丁层），可经 `dsh plugin` 从 GitHub 一键安装，无需克隆本仓库。
 
-| 形态 | 安装方式 | 工具范围 | 生效时机 | 依赖 |
+## 特性
+
+- **官方插件形态**：`dsh plugin` 一键安装，安装后自动进入 profile 补丁层栈，零手工配置
+- **全局可用**：安装后宿主重启，所有会话（含子 agent）都能用 `mcp__chrome-devtools__*` 工具
+- **按会话可选**：附带 agent preset 形态，无需重启、无需 pnpm，按需启用
+- **真实浏览器**：有头或无头 Chrome、多标签、Cookie、网络拦截、性能轨迹，一应俱全
+- **自动重连**：服务器崩溃由 `dsh-mcp-client` 指数退避重启，失败预算防无限重启
+- **跨平台**：Windows / macOS / Linux；安装脚本零依赖（纯 Node 标准库）
+
+## 安装方式对比
+
+| 形态 | 安装命令 | 工具范围 | 生效时机 | 依赖 |
 |---|---|---|---|---|
-| **bundle 插件**（推荐，默认） | `node scripts/install.mjs` 或 `dsh plugin add` | **全局**：profile 下所有会话/预设 | 重启宿主 | pnpm |
-| **agent preset** | `node scripts/install.mjs --preset` | 仅选用该 preset 的新会话 | 新建会话即可 | 无 |
+| **bundle 插件**（推荐） | `dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools` | **全局**：所有会话 | 重启宿主 | pnpm |
+| **agent preset**（按会话） | `node scripts/install.mjs --preset` | 仅选用该 preset 的新会话 | 新建会话即可 | 无 |
 
 ## 架构
 
@@ -37,22 +51,11 @@ chrome-devtools-mcp 服务器（npx -y chrome-devtools-mcp@latest，宿主进程
 前置要求：Node.js 20+（`npx` 在 PATH 上）、本机装有 Chrome / Chromium / Edge
 （`--channel` 可指定具体浏览器）、bundle 模式另需 pnpm。
 
-### 方式一：一键安装 bundle 插件（全局，推荐）
-
-**GitHub 仓库源直接安装**（无需克隆本仓库，dsh 会经 pnpm 拉取）：
+### 方式一：GitHub 一键安装 bundle 插件（全局，推荐）
 
 ```bash
 dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools
 ```
-
-**或使用本仓库的一键脚本**（本地开发迭代，link 语义；`--harness` 指定 dsh 位置）：
-
-```bash
-node scripts/install.mjs            # 默认：安装到 web profile
-node scripts/install.mjs --check    # 先做环境自检（只读）
-```
-
-脚本内部等价于官方命令 `dsh plugin --profile web add <本仓库>`。
 
 安装后**重启宿主**（`dsh web` / 你的启动方式）。重启后所有会话都会出现
 `mcp__chrome-devtools__browser_navigate`、`dom_snapshot`、`browser_screenshot`、
@@ -62,10 +65,23 @@ node scripts/install.mjs --check    # 先做环境自检（只读）
 卸载：
 
 ```bash
-node scripts/install.mjs --uninstall          # 或：dsh plugin --profile web remove dsh-chrome-devtools
+dsh plugin --profile web remove dsh-chrome-devtools
 ```
 
-### 方式二：安装 agent preset（按会话）
+### 方式二：仓库一键脚本（本地开发迭代）
+
+```bash
+git clone https://github.com/yuzi-ska/DSH-Chrome-devtools.git
+cd DSH-Chrome-devtools
+
+node scripts/install.mjs            # 安装到 web profile（本地 link，改代码即时生效）
+node scripts/install.mjs --check    # 环境自检（只读）
+node scripts/install.mjs --uninstall
+```
+
+脚本内部等价于官方命令 `dsh plugin --profile web add <本仓库>`。
+
+### 方式三：安装 agent preset（按会话）
 
 ```bash
 node scripts/install.mjs --preset
@@ -75,9 +91,8 @@ node scripts/install.mjs --preset
 之后新建会话时选择 **Chrome DevTools Agent** preset（设置 → General 可设为默认）。
 无需重启、无需 pnpm。会话内加载的 `chrome-devtools` 技能（SKILL.md）给出各工具族用法。
 
-两种方式可并存（bundle 全局工具 + preset 自带技能）；`dsh-mcp-client` 的
-`serverName` 在进程内唯一，重复安装同一行会因重名报错——不要同时用两个不同文件
-装出两个 `serverName: chrome-devtools` 的实例。
+两种形态可并存（bundle 全局工具 + preset 自带技能）；`dsh-mcp-client` 的
+`serverName` 在进程内唯一，不要装出两个 `serverName: chrome-devtools` 的实例。
 
 ### 安装脚本选项
 
@@ -95,32 +110,22 @@ node scripts/install.mjs [options]
   --yes               删除类操作不询问
 ```
 
-## Harness 插件开发与一键机制
+## 工具能力
 
-Harness 官方插件形态是 **bundle 插件**：一个 npm 包，在 `package.json` 声明
-`"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`，包内的 `cordis.patch.yml`
-作为补丁层插入 profile 组装（参考官方 [`@deepseek-ai/dsh-base`](https://github.com/deepseek-ai/deepseek-harness/tree/main/packages/bundle/base)）。
+以服务器实际声明为准，主要工具族：
 
-`dsh plugin` 是官方的一键管理命令（[apps/cli/src/plugin.ts](https://github.com/deepseek-ai/deepseek-harness/blob/main/apps/cli/src/plugin.ts)）：
-转发给 pnpm 在 profile 目录执行，并**自动把声明了 `dsh.bundle` 的新依赖加入 profile
-补丁层栈**（reconcile），无需手工编辑任何文件。支持：
-
-```bash
-dsh plugin --profile web add <npm包名>            # registry
-dsh plugin --profile web add <本地目录>            # 本地 link（开发迭代）
-dsh plugin --profile web add github:user/repo     # git 源（pnpm ≥10 需在 profile 的 pnpm-workspace.yaml 允许 build）
-dsh plugin --profile web remove <npm包名>
-dsh plugin --profile web update
-```
-
-本仓库**根目录**就是一个可直接 `dsh plugin add` 的 bundle 插件包：`package.json`
-声明 `dsh.bundle`，`cordis.patch.yml` 是补丁层（纯补丁、无代码，`dependencies`
-为空——桥接能力全部来自随 Harness 发布的 `@deepseek-ai/dsh-mcp-client`）。
-GitHub 源安装时 pnpm 克隆整个仓库，仓库根即包根。发布到 npm 后，安装命令简化为：
-
-```bash
-dsh plugin --profile web add dsh-chrome-devtools
-```
+| 族 | 工具（mcp__chrome-devtools__ 前缀） |
+|---|---|
+| 浏览器 | browser_navigate / browser_reload / browser_navigate_history / browser_back / browser_forward |
+| 标签页 | browser_new_tab / browser_select_tab / browser_close_tab / browser_focus_tab |
+| DOM | dom_snapshot / dom_snapshot_meta |
+| 交互 | browser_click / browser_type / browser_press_key / browser_hover / browser_scroll / browser_resize |
+| 截图 | browser_screenshot(fullPage, format) |
+| 控制台 | console_enable / console_list_messages / console_disable |
+| 网络 | network_enable / network_get_response_body / network_set_extra_http_headers / network_block_urls |
+| 性能 | performance_start_trace / performance_stop_trace |
+| 存储 | storage_get_cookies / storage_set_cookie / storage_delete_cookie / storage_clear_cookies |
+| 模拟 | emulation 相关工具（若服务器声明） |
 
 ## 配置参考
 
@@ -165,8 +170,7 @@ dsh plugin --profile web add dsh-chrome-devtools
 ## 会话与共享语义
 
 - **bundle 插件（全局）**：工具注册在 host 组装，profile 下每个 agent（含子 agent）都可见；
-  所有会话共享一个浏览器与服务器进程。会话之间的浏览器状态（标签、Cookie、控制台缓冲）
-  互相可见。
+  所有会话共享一个浏览器与服务器进程。会话之间的浏览器状态（标签、Cookie、控制台缓冲）互相可见。
 - **preset（按会话）**：只有选用该 preset 的会话共享浏览器；其它 preset 的会话不受影响。
 - 需要互相隔离的浏览器场景：复制 preset 并修改 `serverName` 与 `args`
   （如 `--isolated` 或 `--user-data-dir` 分开）。
@@ -192,6 +196,26 @@ dsh plugin --profile web add dsh-chrome-devtools
 | `dsh plugin` 报 pnpm 缺失 | 安装 pnpm（`npm i -g pnpm` 或 `corepack enable`）；preset 模式不需要 pnpm |
 | 工具调用超时 | 单次 120s；网络差或页面卡死时提高 `toolCallTimeoutMs` |
 | 装了两份 mcp 行报 serverName 冲突 | 同一进程内 `serverName` 必须唯一；保留一份，另一份改 `serverName` 或移除 |
+| 从本地 link 切换 GitHub 源报 EPERM | Windows junction 无法被 pnpm rename 覆盖：先 `dsh plugin remove`，再 add 新源 |
+| 安装后工具没出现 | bundle 插件在启动时加载，**必须重启宿主**；profile 补丁层的配置热重载对新增行不生效 |
+
+## 开发与迭代
+
+```bash
+git clone https://github.com/yuzi-ska/DSH-Chrome-devtools.git
+cd DSH-Chrome-devtools
+
+# 本地 link 安装（改 cordis.patch.yml 后重启即生效；无需每次推送）
+node scripts/install.mjs --harness <harness仓库路径>
+
+# 无重启验证组装树（boot-free）
+node <harness>/apps/cli/lib/bin.js --profile web --dump-config | grep -A8 mcp-chrome-devtools
+```
+
+- 修改 `cordis.patch.yml`（bundle 行）时，同步更新 `presets/chrome-devtools/agent.cordis.yml`
+  里的同一行（两处配置必须保持一致）。
+- 推送后远程安装：`dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools`。
+- 内部开发文档 `docs/development.md` 不上传远程（.gitignore 排除）。
 
 ## 参考
 
