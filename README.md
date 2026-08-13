@@ -5,62 +5,42 @@
 让 DeepSeek Harness 的 Agent 通过 [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)
 驱动一个真实 Chrome 浏览器：导航、点击、输入、截图、DOM 快照、控制台、网络请求、性能轨迹、Cookie。
 
-本仓库**根目录就是一个官方 bundle 插件包**（`package.json` 声明 `dsh.bundle`，
-`cordis.patch.yml` 是补丁层），可经 `dsh plugin` 从 GitHub 一键安装，无需克隆本仓库。
+**唯一安装方式：官方 `dsh plugin` 一键安装**（GitHub 源，无需克隆本仓库）。
+本仓库根目录就是官方 bundle 插件包（`package.json` 声明 `dsh.bundle`，
+`cordis.patch.yml` 是补丁层）：MCP 服务器行由插件自带，安装后**开箱即用**，
+不需要安装任何附加组件、不需要自己配置 MCP。
 
 ## 特性
 
-- **官方插件形态**：`dsh plugin` 一键安装，安装后自动进入 profile 补丁层栈，零手工配置
-- **全局可用**：安装后宿主重启，所有会话（含子 agent）都能用 `mcp__chrome-devtools__*` 工具
-- **按会话可选**：附带 agent preset 形态，无需重启、无需 pnpm，按需启用
+- **一键安装**：`dsh plugin add github:...` 一条命令，自动进入 profile 补丁层栈，零手工配置
+- **开箱即用**：mcp 行、工具命名空间、超时与重连策略全部由插件内置；首次使用时
+  npx 自动下载服务器、自动启动本机 Chrome，之后常驻
+- **全局可用**：宿主重启后，所有会话（含子 agent）都能用 `mcp__chrome-devtools__*` 工具
 - **真实浏览器**：有头或无头 Chrome、多标签、Cookie、网络拦截、性能轨迹，一应俱全
 - **自动重连**：服务器崩溃由 `dsh-mcp-client` 指数退避重启，失败预算防无限重启
-- **跨平台**：Windows / macOS / Linux；安装脚本零依赖（纯 Node 标准库）
+- **跨平台**：Windows / macOS / Linux；仓库自带零依赖安装脚本（纯 Node 标准库）
 
-## 安装方式对比
+## 环境要求
 
-| 形态 | 安装命令 | 工具范围 | 生效时机 | 依赖 |
-|---|---|---|---|---|
-| **bundle 插件**（推荐） | `dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools` | **全局**：所有会话 | 重启宿主 | pnpm |
-| **agent preset**（按会话） | `node scripts/install.mjs --preset` | 仅选用该 preset 的新会话 | 新建会话即可 | 无 |
+| 依赖 | 说明 |
+|---|---|
+| DeepSeek Harness | 随官方发布，自带 `@deepseek-ai/dsh-mcp-client` 桥接插件 |
+| Node.js ≥ 20 | `npx` 在 PATH 上 |
+| pnpm | `dsh plugin` 的底层包管理器（`npm i -g pnpm` 或 `corepack enable`） |
+| Chrome / Chromium / Edge | 本机安装；可在插件 `args` 用 `--channel` 指定 |
 
-## 架构
-
-```
-Harness（profile 组装）
-   │
-   │  bundle 插件补丁层（仓库根 cordis.patch.yml）或 preset 行（presets/chrome-devtools/agent.cordis.yml）
-   ▼
-@deepseek-ai/dsh-mcp-client 行（stdio，随 Harness 发布）
-   │
-   ▼
-chrome-devtools-mcp 服务器（npx -y chrome-devtools-mcp@latest，宿主进程 spawn）
-   │
-   │  Chrome DevTools Protocol
-   ▼
-一个共享的 Chrome 实例（本机已安装的 Chrome/Chromium/Edge）
-```
-
-- 每个 MCP 工具以 `mcp__chrome-devtools__<tool>` 名称注册进 `ctx.tools`，模型当作原生工具调用。
-- 一个 profile / 一个 preset 只挂载一份常驻服务器：同一作用域的所有会话共享同一个浏览器。
-- 服务器崩溃由 `dsh-mcp-client` 的 supervisor 以指数退避自动重连；连续失败 10 次后工具注销（重启宿主或重载 preset 恢复）。
-- 单次工具调用最长 120 秒（可配置）。
-
-## 快速开始
-
-前置要求：Node.js 20+（`npx` 在 PATH 上）、本机装有 Chrome / Chromium / Edge
-（`--channel` 可指定具体浏览器）、bundle 模式另需 pnpm。
-
-### 方式一：GitHub 一键安装 bundle 插件（全局，推荐）
+## 安装
 
 ```bash
 dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools
 ```
 
+（非 web 界面可把 `web` 换成你的 profile 名，如 `tui` / `headless`。）
+
 安装后**重启宿主**（`dsh web` / 你的启动方式）。重启后所有会话都会出现
 `mcp__chrome-devtools__browser_navigate`、`dom_snapshot`、`browser_screenshot`、
 `console_list_messages`、`network_get_response_body`、`performance_start_trace`
-等工具（以服务器实际声明为准）。
+等工具（以服务器实际声明为准），无需任何额外配置。
 
 卸载：
 
@@ -68,47 +48,49 @@ dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools
 dsh plugin --profile web remove dsh-chrome-devtools
 ```
 
-### 方式二：仓库一键脚本（本地开发迭代）
+### 仓库一键脚本（开发/本机场景）
 
 ```bash
 git clone https://github.com/yuzi-ska/DSH-Chrome-devtools.git
 cd DSH-Chrome-devtools
 
-node scripts/install.mjs            # 安装到 web profile（本地 link，改代码即时生效）
+node scripts/install.mjs            # 安装到 web profile（本地 link，改代码重启即生效）
 node scripts/install.mjs --check    # 环境自检（只读）
 node scripts/install.mjs --uninstall
 ```
 
-脚本内部等价于官方命令 `dsh plugin --profile web add <本仓库>`。
-
-### 方式三：安装 agent preset（按会话）
-
-```bash
-node scripts/install.mjs --preset
-```
-
-把 `presets/chrome-devtools/` 复制到 `$DSH_HOME/.agent-presets/chrome-devtools/`，
-之后新建会话时选择 **Chrome DevTools Agent** preset（设置 → General 可设为默认）。
-无需重启、无需 pnpm。会话内加载的 `chrome-devtools` 技能（SKILL.md）给出各工具族用法。
-
-两种形态可并存（bundle 全局工具 + preset 自带技能）；`dsh-mcp-client` 的
-`serverName` 在进程内唯一，不要装出两个 `serverName: chrome-devtools` 的实例。
-
-### 安装脚本选项
-
 ```
 node scripts/install.mjs [options]
-  --preset            安装 agent preset（按会话）而非 bundle 插件（全局）
   --check             环境自检：node/pnpm/dsh/浏览器/DSH_HOME，不写任何文件
-  --uninstall         卸载（bundle 模式调 dsh plugin remove；preset 模式删目录）
+  --uninstall         卸载（dsh plugin remove）
   --profile <name>    目标 profile（默认 web）
   --dsh-home <path>   覆盖 DSH_HOME（默认 $DSH_HOME 或 ~/.dsh）
   --harness <path>    harness 仓库/安装路径（dsh 不在 PATH 时用 node 直接跑 CLI）
   --plugin-spec <s>   插件源（默认本仓库根目录；可填 npm 包名、git 源或本地路径）
-  --package-name <n>  卸载 bundle 时按此包名移除（默认 dsh-chrome-devtools）
-  --force             覆盖已存在且内容不同的 preset 目录
-  --yes               删除类操作不询问
+  --package-name <n>  卸载时按此包名移除（默认 dsh-chrome-devtools）
 ```
+
+## 架构
+
+```
+Harness（profile 组装）
+   │
+   │  bundle 插件补丁层（本仓库 cordis.patch.yml）
+   ▼
+@deepseek-ai/dsh-mcp-client 行（stdio，随 Harness 发布，配置由插件内置）
+   │
+   ▼
+chrome-devtools-mcp 服务器（npx -y chrome-devtools-mcp@latest，宿主进程 spawn，首次自动下载）
+   │
+   │  Chrome DevTools Protocol
+   ▼
+一个共享的 Chrome 实例（自动启动本机已安装的 Chrome/Chromium/Edge）
+```
+
+- 每个 MCP 工具以 `mcp__chrome-devtools__<tool>` 名称注册进 `ctx.tools`，模型当作原生工具调用。
+- 一个 profile 只挂载一份常驻服务器：所有会话共享同一个浏览器。
+- 服务器崩溃由 `dsh-mcp-client` 的 supervisor 以指数退避自动重连；连续失败 10 次后工具注销（重启宿主恢复）。
+- 单次工具调用最长 120 秒（可配置）。
 
 ## 工具能力
 
@@ -129,7 +111,9 @@ node scripts/install.mjs [options]
 
 ## 配置参考
 
-### mcp 行（仓库根 cordis.patch.yml 与 presets/chrome-devtools/agent.cordis.yml 中的同一配置）
+默认配置已开箱即用；以下为可选项（改 `cordis.patch.yml` 后需重启宿主）。
+
+### mcp 行（插件内置）
 
 ```yaml
 - id: mcp-chrome-devtools
@@ -145,9 +129,9 @@ node scripts/install.mjs [options]
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
-| `serverName` | 必填 | `[A-Za-z0-9_-]{1,32}`，进程内所有 mcp-client 实例唯一 |
-| `command` / `args` | 必填 | stdio 启动命令；Windows 下 `npx` 由 SDK 的 cross-spawn 正确解析 |
-| `toolCallTimeoutMs` | 60000 | 单次工具调用超时；页面加载/轨迹录制建议放宽 |
+| `serverName` | chrome-devtools | `[A-Za-z0-9_-]{1,32}`，进程内所有 mcp-client 实例唯一 |
+| `command` / `args` | npx ... | stdio 启动命令；Windows 下 `npx` 由 SDK 的 cross-spawn 正确解析 |
+| `toolCallTimeoutMs` | 120000 | 单次工具调用超时；页面加载/轨迹录制建议放宽 |
 | `failOnStartupError` | false | true 时首连失败直接拒绝所在组装；false 时记日志并按退避重连 |
 | `env` / `cwd` | 空 | 附加环境变量 / 工作目录（默认继承宿主） |
 | `reconnect.*` | 见文档 | 重连预算：initialDelayMs 500 / maxDelayMs 30000 / maxAttempts 10 |
@@ -167,20 +151,17 @@ node scripts/install.mjs [options]
 
 完整清单以官方 [docs/cli.md](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/cli.md) 为准。
 
-## 会话与共享语义
+## 共享语义
 
-- **bundle 插件（全局）**：工具注册在 host 组装，profile 下每个 agent（含子 agent）都可见；
-  所有会话共享一个浏览器与服务器进程。会话之间的浏览器状态（标签、Cookie、控制台缓冲）互相可见。
-- **preset（按会话）**：只有选用该 preset 的会话共享浏览器；其它 preset 的会话不受影响。
-- 需要互相隔离的浏览器场景：复制 preset 并修改 `serverName` 与 `args`
-  （如 `--isolated` 或 `--user-data-dir` 分开）。
+- 工具注册在 host 组装：profile 下每个 agent（含子 agent）都可见。
+- 所有会话共享一个浏览器与服务器进程，会话之间的浏览器状态（标签、Cookie、控制台缓冲）互相可见。
+- 需要隔离的浏览器场景：修改 `serverName` 与 `args`（如 `--isolated` 或单独 `--user-data-dir`）另装实例。
 
 ## 安全说明
 
 - 浏览器能力与 shell 访问同级信任：可读写 Cookie、发任意请求、访问内网。只给可信会话使用。
 - 页面内容（DOM 快照、控制台、响应体）会进入模型上下文与会话日志，注意敏感页面。
-- 全局模式下每个请求都会携带该组工具的 schema（token 成本）；不需要浏览器能力的部署
-  建议用 preset 模式按需启用。
+- 全局模式下每个请求都会携带该组工具的 schema（token 成本）。
 - `failOnStartupError: false` 下，服务器持续崩溃会消耗重连预算后注销工具——这是
   刻意的失败可见性，不会无限重启。
 
@@ -188,16 +169,15 @@ node scripts/install.mjs [options]
 
 | 现象 | 处理 |
 |---|---|
-| 首次调用/建会话很慢（30-60s+） | npx 首次下载 + Chrome 启动，一次性成本；之后常驻 |
+| 首次调用很慢（30-60s+） | npx 首次下载 + Chrome 启动，一次性成本；之后常驻 |
 | 无浏览器工具出现 | 看宿主日志的 `mcp-client(chrome-devtools)` 行：reconnecting（warn）、recovered（info）、disabled-loss（error） |
+| 安装后工具没出现 | bundle 插件在启动时加载，**必须重启宿主**；profile 补丁层的配置热重载对新增行不生效 |
 | Chrome 未安装/找不到 | 在 `args` 加 `--channel`（如 `msedge`），或确认默认 Chrome 存在 |
 | npx 无法下载 | 检查 npm registry 网络；可改 `args: ['-y', 'chrome-devtools-mcp@<固定版本>']` |
 | 想附加已开的 Chrome | Chrome 以 `--remote-debugging-port=9222` 启动后，`args` 加 `--browserUrl http://localhost:9222` |
-| `dsh plugin` 报 pnpm 缺失 | 安装 pnpm（`npm i -g pnpm` 或 `corepack enable`）；preset 模式不需要 pnpm |
+| `dsh plugin` 报 pnpm 缺失 | 安装 pnpm（`npm i -g pnpm` 或 `corepack enable`） |
 | 工具调用超时 | 单次 120s；网络差或页面卡死时提高 `toolCallTimeoutMs` |
-| 装了两份 mcp 行报 serverName 冲突 | 同一进程内 `serverName` 必须唯一；保留一份，另一份改 `serverName` 或移除 |
 | 从本地 link 切换 GitHub 源报 EPERM | Windows junction 无法被 pnpm rename 覆盖：先 `dsh plugin remove`，再 add 新源 |
-| 安装后工具没出现 | bundle 插件在启动时加载，**必须重启宿主**；profile 补丁层的配置热重载对新增行不生效 |
 
 ## 开发与迭代
 
@@ -212,8 +192,6 @@ node scripts/install.mjs --harness <harness仓库路径>
 node <harness>/apps/cli/lib/bin.js --profile web --dump-config | grep -A8 mcp-chrome-devtools
 ```
 
-- 修改 `cordis.patch.yml`（bundle 行）时，同步更新 `presets/chrome-devtools/agent.cordis.yml`
-  里的同一行（两处配置必须保持一致）。
 - 推送后远程安装：`dsh plugin --profile web add github:yuzi-ska/DSH-Chrome-devtools`。
 - 内部开发文档 `docs/development.md` 不上传远程（.gitignore 排除）。
 
@@ -222,5 +200,4 @@ node <harness>/apps/cli/lib/bin.js --profile web --dump-config | grep -A8 mcp-ch
 - [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)（服务器；工具清单与 CLI 选项以其 README / docs/cli.md 为准）
 - [deepseek-ai/deepseek-harness — packages/mcp/mcp-client](https://github.com/deepseek-ai/deepseek-harness/tree/main/packages/mcp/mcp-client)（Harness 侧 MCP 客户端桥接插件）
 - [deepseek-ai/deepseek-harness — packages/bundle](https://github.com/deepseek-ai/deepseek-harness/tree/main/packages/bundle)（bundle 插件机制）
-- [deepseek-ai/deepseek-harness — packages/preset/agent-presets](https://github.com/deepseek-ai/deepseek-harness/tree/main/packages/preset/agent-presets)（preset 机制）
 - [deepseek-ai/deepseek-harness — apps/cli/src/plugin.ts](https://github.com/deepseek-ai/deepseek-harness/blob/main/apps/cli/src/plugin.ts)（`dsh plugin` 命令实现）

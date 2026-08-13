@@ -2,47 +2,39 @@
 /**
  * dsh-chrome-devtools 一键安装脚本（Windows / macOS / Linux，零第三方依赖）。
  *
- * 默认执行「bundle 插件」安装：把本仓库的 plugin/ 目录以官方 `dsh plugin`
- * 机制装进目标 profile（宿主重启后全局工具 mcp__chrome-devtools__* 生效）。
- * 也可用 --preset 安装「按会话」的 agent preset（无需重启、无需 pnpm）。
+ * 唯一安装方式：官方 bundle 插件——把本仓库以 `dsh plugin` 机制装进目标 profile
+ * （宿主重启后全局工具 mcp__chrome-devtools__* 生效）。mcp 行由插件自带，
+ * 无需任何手动配置。
  *
  * 用法：
- *   node scripts/install.mjs                     # bundle 模式安装到 web profile
- *   node scripts/install.mjs --preset            # 安装 chrome-devtools agent preset
+ *   node scripts/install.mjs                     # 安装到 web profile
  *   node scripts/install.mjs --check             # 环境自检（不写任何文件）
- *   node scripts/install.mjs --uninstall         # 卸载 bundle 插件
- *   node scripts/install.mjs --preset --uninstall --yes   # 删除 preset 目录
+ *   node scripts/install.mjs --uninstall         # 卸载
  *   node scripts/install.mjs --profile tui       # 指定 profile
  *   node scripts/install.mjs --harness <path>    # 指定 harness 仓库（本机开发，dsh 不在 PATH 时）
- *   node scripts/install.mjs --plugin-spec <spec># 覆盖插件源（默认本地 plugin/ 目录）
- *   node scripts/install.mjs --package-name <n>  # 卸载时指定 npm 包名（默认 dsh-chrome-devtools）
+ *   node scripts/install.mjs --plugin-spec <s>   # 覆盖插件源（默认本仓库根目录）
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync, cpSync, mkdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DEFAULT_PLUGIN_SOURCE = REPO_ROOT
-const DEFAULT_PRESET_SOURCE = join(REPO_ROOT, 'presets', 'chrome-devtools')
 const DEFAULT_PACKAGE_NAME = 'dsh-chrome-devtools'
-const PRESET_ID = 'chrome-devtools'
 const MIN_NODE_MAJOR = 20
 
 // ---- 参数解析 ---------------------------------------------------------------
 
 const args = process.argv.slice(2)
 const opts = {
-  mode: 'bundle', // bundle | preset
   action: 'install', // install | check | uninstall
   profile: 'web',
   dshHome: process.env.DSH_HOME ?? join(process.env.HOME ?? process.env.USERPROFILE ?? '', '.dsh'),
   harness: process.env.DSH_BIN ?? '',
   pluginSpec: '',
   packageName: DEFAULT_PACKAGE_NAME,
-  yes: false,
-  force: false,
   quiet: false,
 }
 
@@ -53,16 +45,13 @@ function usage() {
   node scripts/install.mjs [options]
 
 选项:
-  --preset            安装 agent preset（按会话）而非 bundle 插件（全局）
   --check             环境自检：node/pnpm/dsh/浏览器/DSH_HOME，不写任何文件
-  --uninstall         卸载（bundle 模式调 dsh plugin remove；preset 模式删目录）
+  --uninstall         卸载（dsh plugin remove）
   --profile <name>    目标 profile（默认 web）
   --dsh-home <path>   覆盖 DSH_HOME（默认 $DSH_HOME 或 ~/.dsh）
   --harness <path>    harness 仓库/安装路径（dsh 不在 PATH 时用 node 直接跑 CLI）
-  --plugin-spec <s>   插件源（默认本仓库 plugin/ 目录；可填 npm 包名或 git 源）
-  --package-name <n>  卸载 bundle 时按此包名移除（默认 ${DEFAULT_PACKAGE_NAME}）
-  --force             覆盖已存在且内容不同的 preset 目录
-  --yes               删除类操作不询问（直接执行）
+  --plugin-spec <s>   插件源（默认本仓库根目录；可填 npm 包名、git 源或本地路径）
+  --package-name <n>  卸载时按此包名移除（默认 ${DEFAULT_PACKAGE_NAME}）
   -h, --help          显示本帮助`)
 }
 
@@ -71,7 +60,6 @@ for (let i = 0; i < args.length; i++) {
   const next = () => args[++i]
   switch (arg) {
     case '-h': case '--help': usage(); process.exit(0); break
-    case '--preset': opts.mode = 'preset'; break
     case '--check': opts.action = 'check'; break
     case '--uninstall': opts.action = 'uninstall'; break
     case '--profile': opts.profile = next() ?? ''; break
@@ -79,8 +67,6 @@ for (let i = 0; i < args.length; i++) {
     case '--harness': opts.harness = next() ?? ''; break
     case '--plugin-spec': opts.pluginSpec = next() ?? ''; break
     case '--package-name': opts.packageName = next() ?? ''; break
-    case '--force': opts.force = true; break
-    case '--yes': opts.yes = true; break
     default:
       console.error(`未知参数: ${arg}\n`)
       usage()
@@ -174,7 +160,6 @@ function findBrowser() {
 }
 
 const profileDir = () => join(opts.dshHome, 'profiles', opts.profile)
-const presetDest = () => join(opts.dshHome, '.agent-presets', PRESET_ID)
 const pluginSpec = () => (opts.pluginSpec !== '' ? opts.pluginSpec : resolve(DEFAULT_PLUGIN_SOURCE))
 
 // ---- 子命令：check ----------------------------------------------------------
@@ -183,7 +168,7 @@ function cmdCheck() {
   console.log('环境自检：')
   console.log(`  node        v${process.versions.node}（需要 >= ${MIN_NODE_MAJOR}）`)
   const pnpm = findPnpm()
-  console.log(`  pnpm        ${pnpm !== '' ? pnpm : '未找到（bundle 插件安装必需；preset 模式不需要）'}`)
+  console.log(`  pnpm        ${pnpm !== '' ? pnpm : '未找到（dsh plugin 依赖 pnpm）'}`)
   const browser = findBrowser()
   console.log(`  浏览器      ${browser !== '' ? browser : '未检测到 Chrome/Chromium/Edge（可在插件 args 加 --channel 指定）'}`)
   console.log(`  DSH_HOME    ${opts.dshHome}${existsSync(opts.dshHome) ? '' : '（目录不存在）'}`)
@@ -191,11 +176,12 @@ function cmdCheck() {
   const dsh = resolveDshInvocation()
   if (dsh.error) console.log(`  dsh         ${dsh.error}`)
   else console.log(`  dsh         ${dsh.command} ${dsh.args.join(' ')}`.trimEnd())
-  const installed = existsSync(presetDest()) && existsSync(join(presetDest(), 'agent.cordis.yml'))
-  console.log(`  preset      ${installed ? `已安装 @ ${presetDest()}` : '未安装'}`)
+  const manifest = bundleInstalledManifest()
+  const installed = manifest && (manifest.dependencies ?? {})[opts.packageName]
+  console.log(`  插件        ${installed ? `已安装（${installed}）` : '未安装'}`)
 }
 
-// ---- 子命令：bundle 插件安装/卸载 -------------------------------------------
+// ---- 子命令：安装/卸载 -------------------------------------------------------
 
 function bundleInstalledManifest() {
   const manifestPath = join(profileDir(), 'package.json')
@@ -210,92 +196,46 @@ function bundleInstalledManifest() {
 function cmdBundleInstall() {
   const pnpm = findPnpm()
   if (pnpm === '') {
-    console.error('[bundle] 未找到 pnpm（dsh plugin 依赖 pnpm 管理 profile 依赖）。')
-    console.error('  安装 pnpm：npm i -g pnpm（或 corepack enable），再重试；')
-    console.error('  或改用 preset 模式：node scripts/install.mjs --preset')
+    console.error('[install] 未找到 pnpm（dsh plugin 依赖 pnpm 管理 profile 依赖）。')
+    console.error('  安装 pnpm：npm i -g pnpm（或 corepack enable），再重试')
     process.exit(1)
   }
   const dsh = resolveDshInvocation()
   if (dsh.error) {
-    console.error(`[bundle] ${dsh.error}`)
+    console.error(`[install] ${dsh.error}`)
     process.exit(1)
   }
   const spec = pluginSpec()
   if (!/^[a-zA-Z@]|^file:|^link:|^git\+|^github:|\.git(?:#|$)/.test(spec) && !existsSync(spec)) {
-    console.error(`[bundle] 插件源无效: ${spec}`)
+    console.error(`[install] 插件源无效: ${spec}`)
     process.exit(1)
   }
-  log('bundle', `dsh plugin --profile ${opts.profile} add ${spec}`)
+  log('install', `dsh plugin --profile ${opts.profile} add ${spec}`)
   const result = run(dsh.command, [...dsh.args, 'plugin', '--profile', opts.profile, 'add', spec], { stdio: 'inherit' })
   if (result.status !== 0) {
-    console.error(`[bundle] dsh plugin 失败（exit ${result.status ?? 'null'}）。检查上面的输出。`)
+    console.error(`[install] dsh plugin 失败（exit ${result.status ?? 'null'}）。检查上面的输出。`)
     process.exit(1)
   }
-  log('bundle', '安装完成。')
-  console.log('  重启 dsh 后生效：所有会话将出现 mcp__chrome-devtools__* 工具。')
+  log('install', '安装完成。')
+  console.log('  重启 dsh 后生效：所有会话将出现 mcp__chrome-devtools__* 工具（无需任何额外配置）。')
   console.log('  卸载：node scripts/install.mjs --uninstall')
 }
 
 function cmdBundleUninstall() {
   const dsh = resolveDshInvocation()
   if (dsh.error) {
-    console.error(`[bundle] ${dsh.error}`)
+    console.error(`[uninstall] ${dsh.error}`)
     process.exit(1)
   }
   const manifest = bundleInstalledManifest()
   if (!manifest || !(manifest.dependencies ?? {})[opts.packageName]) {
-    console.log(`[bundle] ${opts.packageName} 未安装在 profile ${opts.profile}，无需卸载。`)
+    console.log(`[uninstall] ${opts.packageName} 未安装在 profile ${opts.profile}，无需卸载。`)
     return
   }
-  log('bundle', `dsh plugin --profile ${opts.profile} remove ${opts.packageName}`)
+  log('uninstall', `dsh plugin --profile ${opts.profile} remove ${opts.packageName}`)
   const result = run(dsh.command, [...dsh.args, 'plugin', '--profile', opts.profile, 'remove', opts.packageName], { stdio: 'inherit' })
   if (result.status !== 0) process.exit(1)
   console.log('  已卸载。重启 dsh 后工具移除。')
-}
-
-// ---- 子命令：preset 安装/卸载 -----------------------------------------------
-
-function filesEqual(a, b) {
-  return existsSync(a) && existsSync(b) && readFileSync(a).equals(readFileSync(b))
-}
-
-function cmdPresetInstall() {
-  const source = resolve(DEFAULT_PRESET_SOURCE)
-  if (!existsSync(join(source, 'agent.cordis.yml'))) {
-    console.error(`[preset] 源目录无效（缺少 agent.cordis.yml）: ${source}`)
-    process.exit(1)
-  }
-  const dest = presetDest()
-  if (existsSync(dest)) {
-    if (filesEqual(join(dest, 'agent.cordis.yml'), join(source, 'agent.cordis.yml'))) {
-      console.log('[preset] 已安装且内容一致，无需操作。')
-      return
-    }
-    if (!opts.force) {
-      console.error(`[preset] ${dest} 已存在且 agent.cordis.yml 不同。确认覆盖请加 --force。`)
-      process.exit(1)
-    }
-    rmSync(dest, { recursive: true, force: true })
-  }
-  mkdirSync(dirname(dest), { recursive: true })
-  cpSync(source, dest, { recursive: true })
-  log('preset', `已安装到 ${dest}`)
-  console.log('  新建会话时选择 "Chrome DevTools Agent" preset 即可使用（无需重启）。')
-  console.log('  卸载：node scripts/install.mjs --preset --uninstall --yes')
-}
-
-function cmdPresetUninstall() {
-  const dest = presetDest()
-  if (!existsSync(dest)) {
-    console.log('[preset] 未安装，无需卸载。')
-    return
-  }
-  if (!opts.yes) {
-    console.error(`[preset] 将删除 ${dest}。确认请加 --yes。`)
-    process.exit(1)
-  }
-  rmSync(dest, { recursive: true, force: true })
-  console.log('[preset] 已删除。')
 }
 
 // ---- 主流程 ---------------------------------------------------------------
@@ -303,10 +243,7 @@ function cmdPresetUninstall() {
 if (opts.action === 'check') {
   cmdCheck()
 } else if (opts.action === 'uninstall') {
-  if (opts.mode === 'bundle') cmdBundleUninstall()
-  else cmdPresetUninstall()
-} else if (opts.mode === 'preset') {
-  cmdPresetInstall()
+  cmdBundleUninstall()
 } else {
   cmdBundleInstall()
 }
