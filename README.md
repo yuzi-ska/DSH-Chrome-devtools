@@ -181,6 +181,7 @@ chrome-devtools-mcp 服务器（npx -y chrome-devtools-mcp@latest，宿主进程
 | `dsh plugin` 报 pnpm 缺失 | 安装 pnpm（`npm i -g pnpm` 或 `corepack enable`） |
 | 工具调用超时 | 单次 120s；网络差或页面卡死时提高 `toolCallTimeoutMs` |
 | 从本地 link 切换 GitHub 源报 EPERM | Windows junction 无法被 pnpm rename 覆盖：先 `dsh plugin remove`，再 add 新源 |
+| 经 dsh-plugin.org 市场安装报 `entry file missing` | 市场安装器要求分发包内有可解析入口文件；v0.1.1 起随包提供（`index.js`，仅满足打包校验，不承载能力），刷新到最新版本重装即可 |
 
 ## 开发与迭代
 

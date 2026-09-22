@@ -17,3 +17,12 @@ Thumbs.db
 # 临时产物
 tmp/
 dist/
+screenshots/
+
+# 本机宿主实测环境（隔离目录：harness checkout、profile、node_modules、日志、截图）
+.dsh-local/
+
+# Agent 会话与凭据
+.qoder/
+.env
+.env.*

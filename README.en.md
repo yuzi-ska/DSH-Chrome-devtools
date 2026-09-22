@@ -203,6 +203,7 @@ See the official [docs/cli.md](https://github.com/ChromeDevTools/chrome-devtools
 | `dsh plugin` reports missing pnpm | Install pnpm (`npm i -g pnpm` or `corepack enable`) |
 | Tool call times out | 120s per call; raise `toolCallTimeoutMs` for slow networks or stuck pages |
 | EPERM when switching from a local link to a GitHub source | Windows junctions cannot be renamed over by pnpm: `dsh plugin remove` first, then add the new source |
+| Marketplace install fails with `entry file missing` (dsh-plugin.org) | The marketplace installer requires a resolvable entry in the distributed package; since v0.1.1 the package ships one (`index.js`, packaging-only, carries no capability) — refresh to the latest version and reinstall |
 
 ## Development
 

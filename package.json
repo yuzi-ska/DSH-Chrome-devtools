@@ -1,10 +1,16 @@
 {
   "name": "dsh-chrome-devtools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DeepSeek Harness profile bundle: Chrome DevTools MCP integration — drives one real Chrome browser through chrome-devtools-mcp via @deepseek-ai/dsh-mcp-client",
   "type": "module",
+  "main": "index.js",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuzi-ska/DSH-Chrome-devtools.git"
+  },
   "files": [
+    "index.js",
     "cordis.patch.yml"
   ],
   "exports": {
